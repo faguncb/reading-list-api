@@ -1,5 +1,5 @@
 from typing import Annotated, Optional
-from fastapi import FastAPI, HTTPExecution, Query
+from fastapi import FastAPI, HTTPException, Query, Depends
 from sqlmodel import Field, Session, SQLModel, create_engine, select
 
 # --- 1. Database Setup ---
@@ -34,7 +34,7 @@ def get_session():
     with Session(engine) as session:
         yield session
 
-SessionDep = Annotated[Session, get_session]
+SessionDep = Annotated[Session, Depends(get_session)]
 
 # --- 5. Create the FastAPI App ---
 app = FastAPI(title="Reading List API")
@@ -43,11 +43,16 @@ app = FastAPI(title="Reading List API")
 def on_startup():
     create_db_and_tables()
 
+# --- 5.1 Show the root directory ---
+@app.get("/")
+def root():
+    return {"message": "Reading List API is running. Go to /docs to explore."}
+
 # --- 6. API Endpoints (CRUD) ---
 
 # GET all books
 @app.get("/books", response_model=list[Book])
-def read_books(session: SessionDep, status: Optional[str] = Query(default = None))):
+def read_books(session: SessionDep, status: Optional[str] = Query(default = None)):
     query = select(Book)
     if status:
         query = query.where(Book.status == status)
@@ -63,7 +68,7 @@ def create_book(book: Book, session: SessionDep):
     return book
 
 # GET a single book by ID
-@app.get("books/{book_id}", response_model=Book)
+@app.get("/books/{book_id}", response_model=Book)
 def read_book(book_id: int, session: SessionDep):
     book = session.get(Book, book_id)
     if not book:
